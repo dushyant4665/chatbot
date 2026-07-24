@@ -1,84 +1,62 @@
-# Chatbot Platform
+# My Chatbot Project
 
-A minimal, scalable, and high-performance Chatbot Platform where users can create isolated projects (agents), associate system prompts, upload context files, and interact via real-time AI chat. 
+Hey! This is a simple but powerful Chatbot platform I built. It works just like ChatGPT where you can create projects, chat with an AI, and even upload files!
 
-## Features
-- **Authentication**: Secure JWT-based user registration and login with bcrypt password hashing.
-- **Project/Agent Workspaces**: Users can create multiple projects. Each project acts as an isolated agent with its own chat history.
-- **Custom Prompts**: Associate custom system prompts with specific projects to guide agent behavior.
-- **LLM Integration**: Real-time server-sent events (SSE) streaming chat interface integrated with Groq/OpenAI APIs.
-- **Document Context (Bonus)**: Seamlessly upload `.pdf`, `.docx`, and text files directly in the chat. Text is extracted securely on the client-side and injected into the AI context window, ensuring zero backend processing overhead.
+## What it does
+- **Accounts:** You can sign up and log in securely.
+- **Projects:** Create different projects for different topics.
+- **Chat:** Talk to the AI in real-time. The text types out smoothly without any lag!
+- **File Uploads:** You can upload PDFs or Word documents. The app reads them directly in your browser and sends the text to the AI so it knows what you're talking about.
 
-## Architecture & Design
+## How it works
 
-### Tech Stack
-- **Frontend**: React.js, Vite, Tailwind CSS (Vanilla CSS structure)
-- **Backend**: Node.js, Express.js
-- **Database**: PostgreSQL with Prisma ORM
-- **AI Integration**: Groq API (Llama 3) / OpenAI compatible endpoints
-
-### System Design
-The application follows a standard decoupled Client-Server architecture:
-1. **Stateless Auth**: The backend uses JWTs for stateless authentication, ensuring horizontal scalability.
-2. **Database Schema**:
-   - `User` (1) ➔ (N) `Project`
-   - `Project` (1) ➔ (N) `Chat`
-   - `Chat` (1) ➔ (N) `ChatMessage`
-   - `Project` (1) ➔ (N) `Prompt`
-3. **Streaming AI Responses**: To ensure low-latency performance (Non-Functional Requirement), the backend uses `Server-Sent Events (SSE)` to stream the AI chunks directly to the frontend.
-4. **Client-side File Processing**: Instead of using the heavy OpenAI Files API, file extraction (PDF/DOCX) is optimized via browser-native APIs (`pdfjs-dist` & `mammoth`), saving server bandwidth and API costs while maintaining full context-awareness.
-
-### Flow Diagram
+Here is a simple flow of how the system talks to each other:
 
 ```mermaid
 graph TD
-    User((User)) -->|Auth/Chat/Files| Frontend[React + Vite]
-    Frontend -->|REST / SSE| Backend[Express.js API]
-    Backend -->|Read/Write| DB[(PostgreSQL)]
-    Backend -->|Stream Requests| LLM[Groq/OpenAI API]
-    LLM -.->|Yield Chunks| Backend
-    Backend -.->|SSE Data| Frontend
+    A[You / User] -->|Type message & upload file| B[Frontend React]
+    B -->|Send data| C[Backend Node.js]
+    C -->|Save to DB| D[(PostgreSQL)]
+    C -->|Ask AI| E[Groq / OpenAI API]
+    E -->|Stream response back| C
+    C -->|Send words one by one| B
+    B -->|Show smooth typing| A
 ```
 
-## Running the Application Locally
+## Tech Stack
+- **Frontend:** React, Vite (Fast and clean UI)
+- **Backend:** Node.js, Express (Simple and flat structure)
+- **Database:** PostgreSQL with Prisma
+- **AI:** Groq API (Super fast AI responses)
 
-### Prerequisites
-- Node.js (v18+)
-- PostgreSQL (Running on port 5432)
+## How to run it on your computer
 
-### 1. Database Setup
+### 1. Database
+Make sure you have PostgreSQL running. 
+Go to the `backend` folder and run:
 ```bash
-cd backend
 npm install
 npx prisma generate
 npx prisma migrate dev --name init
 ```
 
-### 2. Backend Configuration
-Create a `.env` file in the `backend/` directory:
-```env
-PORT=5000
-DATABASE_URL="postgresql://user:pass@localhost:5432/dbname?schema=public"
-JWT_SECRET="your-super-secret-key"
-GROQ_API_KEY="gsk_your_groq_key_here"
+### 2. Backend Server
+In the `backend` folder, create a file named `.env` and put this inside:
 ```
-Start the backend server:
+PORT=5000
+DATABASE_URL="postgresql://username:password@localhost:5432/botdb?schema=public"
+JWT_SECRET="my-secret-key"
+GROQ_API_KEY="your-groq-api-key"
+```
+Then start the server:
 ```bash
 npm run dev
 ```
 
-### 3. Frontend Setup
-Open a new terminal.
+### 3. Frontend App
+Open a new terminal, go to the `frontend` folder and run:
 ```bash
-cd frontend
 npm install
 npm run dev
 ```
-Navigate to `http://localhost:5173` in your browser.
-
-## Non-Functional Requirements Addressed
-- **Scalability**: Stateless JWTs and connection pooling via Prisma allow multiple concurrent users.
-- **Security**: Passwords hashed before storage. Protected API routes validate JWT signatures.
-- **Extensibility**: Flat, modular Express controller structure makes it trivial to add Webhooks, Analytics, or new LLM providers.
-- **Performance**: SSE streaming combined with a frontend character-queue ensures zero UI-thread blocking during massive AI responses.
-- **Reliability**: Cascade deletes in Prisma prevent orphaned records, and centralized Express error blocks prevent server crashes.
+Now just open `http://localhost:5173` in your browser and you're good to go!
