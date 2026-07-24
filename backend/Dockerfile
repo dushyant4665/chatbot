@@ -1,20 +1,21 @@
-﻿ARG NODE_VERSION=22.14.0
-
-FROM node:${NODE_VERSION}-alpine
-
-ENV NODE_ENV production
+﻿FROM node:18-alpine
 
 WORKDIR /usr/src/app
 
-RUN --mount=type=bind,source=package.json,target=package.json \
-    --mount=type=bind,source=package-lock.json,target=package-lock.json \
-    --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
+# Package files copy karo
+COPY package*.json ./
 
-USER node
+# Sirf production dependencies install karo
+RUN npm ci --only=production
 
+# Baki code copy karo
 COPY . .
 
-EXPOSE 5173
+# Prisma client generate karo
+RUN npx prisma generate
 
-CMD npm run dev
+# Port expose karo
+EXPOSE 5000
+
+# Server start karo
+CMD ["node", "src/server.js"]
