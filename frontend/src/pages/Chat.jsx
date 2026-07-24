@@ -255,7 +255,8 @@ export default function Chat() {
     abortRef.current = controller;
 
     try {
-      const res = await fetch('/api/chat/stream', {
+      const base = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${base}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ chatId, message: userMessageText }),
