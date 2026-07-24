@@ -19,7 +19,7 @@ export const register = async (req, res) => {
     const token = jwt.sign({ userId: user.id, email, name }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ status: 'success', data: { token, user: { id: user.id, name, email } } });
   } catch (error) {
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -36,7 +36,7 @@ export const login = async (req, res) => {
     const token = jwt.sign({ userId: user.id, email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
     res.status(200).json({ status: 'success', data: { token, user: { id: user.id, name: user.name, email } } });
   } catch (error) {
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ error: error.message });
   }
 };
 
