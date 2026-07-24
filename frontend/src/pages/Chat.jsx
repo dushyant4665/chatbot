@@ -550,7 +550,7 @@ export default function Chat() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".txt,.md,.js,.jsx,.ts,.tsx,.py,.json,.csv,.html,.css,.java,.go,.sh,.yaml,.yml,.xml,.sql"
+                    accept=".pdf,.docx,.txt,.md,.js,.jsx,.ts,.tsx,.py,.json,.csv,.html,.css,.java,.go,.sh,.yaml,.yml,.xml,.sql"
                     style={{ display: 'none' }}
                     onChange={handleFileChange}
                   />
