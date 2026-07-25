@@ -1,126 +1,435 @@
-# AI Chatbot Platform
+# AI Chat Platform
 
-A complete, full-stack, and agentic AI chatbot platform similar to ChatGPT. Built with a clean, highly performant architecture, featuring complete user authentication, dynamic project/agent creation, and multiple independent chat sessions.
+A full-stack chatbot application with real-time streaming responses. Built with React, Node.js, and PostgreSQL.
 
-## Requirements
+## Tech Stack
 
-You are expected to have the following installed on your system to run this project locally:
-- **Node.js** (v18 or higher recommended)
-- **PostgreSQL** (A local or cloud PostgreSQL database)
+**Frontend**
+- React 18 with Vite
+- React Router for navigation
+- Axios for HTTP requests
+- Custom CSS (no frameworks)
+
+**Backend**
+- Node.js with Express
+- Prisma ORM
+- PostgreSQL database
+- JWT authentication
+- Zod for validation
+
+**AI Integration**
+- Groq API (or OpenAI compatible)
+- Server-Sent Events for streaming
+- Real-time response rendering
 
 ## Architecture
 
-This project follows a decoupled client-server architecture:
+```mermaid
+graph TB
+    User[User Browser] --> Frontend[React Frontend]
+    Frontend --> API[Express API]
+    API --> Auth{JWT Auth}
+    Auth -->|Valid| Controllers[Controllers]
+    Auth -->|Invalid| Reject[401 Unauthorized]
+    Controllers --> DB[(PostgreSQL)]
+    Controllers --> AI[Groq/OpenAI API]
+    AI --> Stream[SSE Stream]
+    Stream --> Frontend
+```
 
-1. **Frontend (Vite + React)**: 
-   - A blazing fast single-page application (SPA).
-   - Manages state efficiently without complex abstractions.
-   - Securely stores JWT tokens.
-   - Connects to the backend via REST APIs and Server-Sent Events (SSE) for real-time AI streaming.
-   - Built to be easily deployable on **Vercel**.
-
-2. **Backend (Express + Node.js)**:
-   - A robust RESTful API built on Express.
-   - Utilizes **Prisma ORM** for type-safe database interactions.
-   - Streams AI responses directly to the frontend using the Groq/OpenAI compatible API.
-   - Secures routes using custom JWT middleware.
-   - Built to be easily deployable on **Render**.
-
-3. **Database (PostgreSQL)**:
-   - A relational database maintaining Users, Projects (Agents), Chats, Prompts, and Messages.
-   - The schema is highly extensible and ensures data integrity via cascading deletes.
+**How it works:**
+1. User logs in and receives a JWT token
+2. Token is sent with every API request
+3. Backend validates token and processes request
+4. Chat messages trigger AI API calls
+5. AI responses stream back in real-time via SSE
+6. Frontend renders markdown responses
 
 ## Features
 
-- **Authentication System**: Secure JWT-based registration and login.
-- **Agent/Project Creation**: Create distinct "Agents" by giving them a system prompt/description.
-- **Dual Chat Modes**: 
-  - *Generic Chats*: Start a simple chat without any specific agent (uses a default helpful AI prompt).
-  - *Agent Chats*: Click on an Agent in the sidebar to start a chat deeply integrated with that agent's specific instructions.
-- **Real-time Streaming**: Watch the AI type out its response in real-time, exactly like ChatGPT.
-- **Markdown Support**: The AI's responses render perfectly formatted Markdown (code blocks, lists, bold text).
-- **Clean UI/UX**: Features a highly polished, responsive sidebar and chat interface with complete management (deletion) capabilities.
-- **Zero AI Feel**: The codebase is written entirely with simple, human-readable React components and Express controllers. There is no confusing boilerplate.
+- User authentication with JWT
+- Create multiple projects/agents with custom system prompts
+- Real-time chat with streaming responses
+- Markdown rendering for formatted responses
+- Separate chat history per project
+- Mobile responsive interface
+- Clean, maintainable codebase
 
 ## Installation
 
-First, clone the repository to your local machine.
+### Prerequisites
+- Node.js v18 or higher
+- PostgreSQL database
+- Groq or OpenAI API key
 
-### Backend Setup
+### Clone and Install
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+git clone <repository-url>
+cd bot
 
-### Frontend Setup
+# Install backend dependencies
+cd backend
+npm install
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-## Environment Variables
-
-You need to configure the environment variables before running the application. 
-
-### Backend `.env`
-Create a `.env` file in the `backend/` directory:
-
-```env
-# Server Port
-PORT=5000
-
-# Database Connection (Replace with your PostgreSQL string)
-DATABASE_URL="postgresql://user:password@localhost:5432/botdb"
-
-# JWT Secret (Used for signing authentication tokens)
-JWT_SECRET="your_super_secret_key_here"
-
-# AI API Key (Groq / OpenAI compatible)
-GROQ_API_KEY="your_ai_api_key_here"
+# Install frontend dependencies
+cd ../frontend
+npm install
 ```
 
-### Frontend `.env`
-Create a `.env` file in the `frontend/` directory (if running the backend on a different port/host):
+## Environment Setup
+
+### Backend Environment Variables
+
+Create `backend/.env`:
 
 ```env
-VITE_API_URL="http://localhost:5000"
+DATABASE_URL="postgresql://username:password@localhost:5432/database_name"
+PORT=5000
+JWT_SECRET="your-secret-key-here"
+GROQ_API_KEY="your-groq-api-key"
+NODE_ENV=development
+```
+
+### Frontend Environment Variables
+
+Create `frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:5000
+```
+
+## Database Setup
+
+```bash
+cd backend
+
+# Generate Prisma client
+npx prisma generate
+
+# Create database tables
+npx prisma db push
 ```
 
 ## Running the Application
 
-### 1. Database Migration
-Ensure your PostgreSQL database is running, then run the Prisma migration to create all tables:
-```bash
-cd backend
-npx prisma db push
-npx prisma generate
-```
+### Start Backend
 
-### 2. Start the Backend
 ```bash
 cd backend
 npm run dev
 ```
-*The backend will start on `http://localhost:5000`.*
 
-### 3. Start the Frontend
-In a new terminal window:
+Backend runs on `http://localhost:5000`
+
+### Start Frontend
+
 ```bash
 cd frontend
 npm run dev
 ```
-*The frontend will start on `http://localhost:5173`.*
 
----
+Frontend runs on `http://localhost:5173`
 
-**That's it!** You can now open your browser, register a new account, create some agents, and start chatting.
+## Usage
+
+### 1. Register an Account
+- Go to the register page
+- Enter name, email, and password
+- Click create account
+
+### 2. Create a Project
+- Click "New Project" in sidebar
+- Give it a title
+- Add a description (this becomes the AI system prompt)
+- Example: "You are a Python expert. Help with code and debugging."
+
+### 3. Start Chatting
+- Click on a project to open it
+- Type your message in the input box
+- AI responds in real-time with streaming
+- Messages are saved automatically
+
+### 4. Manage Chats
+- View all chats in the sidebar
+- Click any chat to continue conversation
+- Delete chats you don't need anymore
+
+## API Endpoints
+
+### Authentication
+
+**Register**
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123"
+}
+```
+
+**Login**
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+```
+
+**Get Current User**
+```http
+GET /api/auth/me
+Authorization: Bearer <token>
+```
+
+### Projects
+
+**Get All Projects**
+```http
+GET /api/projects
+Authorization: Bearer <token>
+```
+
+**Create Project**
+```http
+POST /api/projects
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "Python Helper",
+  "description": "Expert Python assistant"
+}
+```
+
+**Delete Project**
+```http
+DELETE /api/projects/:projectId
+Authorization: Bearer <token>
+```
+
+### Chats
+
+**Get All Chats**
+```http
+GET /api/chat
+Authorization: Bearer <token>
+```
+
+**Create Chat**
+```http
+POST /api/chat
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "projectId": "optional-project-id",
+  "title": "New Chat"
+}
+```
+
+**Get Chat Messages**
+```http
+GET /api/chat/:chatId/messages
+Authorization: Bearer <token>
+```
+
+**Send Message (Streaming)**
+```http
+POST /api/chat/stream
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "chatId": "chat-id",
+  "message": "Your question here"
+}
+```
+
+Response format (Server-Sent Events):
+```
+event: start
+data: {"message": {...}}
+
+event: chunk
+data: {"text": "response"}
+
+event: done
+data: {"message": {...}}
+```
+
+**Delete Chat**
+```http
+DELETE /api/chat/:chatId
+Authorization: Bearer <token>
+```
+
+## Project Structure
+
+```
+bot/
+├── backend/
+│   ├── prisma/
+│   │   └── schema.prisma
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── database.js
+│   │   ├── controllers/
+│   │   │   ├── authController.js
+│   │   │   ├── projectController.js
+│   │   │   └── chatController.js
+│   │   ├── middleware/
+│   │   │   ├── auth.js
+│   │   │   ├── validate.js
+│   │   │   └── errorHandler.js
+│   │   ├── routes/
+│   │   │   ├── authRoutes.js
+│   │   │   ├── projectRoutes.js
+│   │   │   └── chatRoutes.js
+│   │   ├── validator/
+│   │   │   ├── authValidators.js
+│   │   │   └── projectValidators.js
+│   │   ├── app.js
+│   │   └── server.js
+│   └── package.json
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Sidebar.jsx
+│   │   │   ├── MarkdownMessage.jsx
+│   │   │   ├── ProjectModal.jsx
+│   │   │   └── Modal.jsx
+│   │   ├── pages/
+│   │   │   ├── Login.jsx
+│   │   │   ├── Register.jsx
+│   │   │   └── Chat.jsx
+│   │   ├── lib/
+│   │   │   ├── api.js
+│   │   │   ├── session.js
+│   │   │   └── error.js
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── index.css
+│   └── package.json
+│
+└── README.md
+```
+
+## Database Schema
+
+```prisma
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  projects     Project[]
+  chats        Chat[]
+  createdAt    DateTime  @default(now())
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chats       Chat[]
+  prompts     Prompt[]
+  createdAt   DateTime @default(now())
+}
+
+model Chat {
+  id        String        @id @default(uuid())
+  title     String
+  userId    String
+  projectId String?
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  role      String
+  content   String   @db.Text
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Prompt {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+```
+
+## Deployment
+
+### Backend on Render
+
+1. Create new Web Service
+2. Connect your GitHub repository
+3. Configure build settings:
+   - Build Command: `npm install && npx prisma generate`
+   - Start Command: `npm start`
+4. Add environment variables
+5. Deploy
+
+### Frontend on Vercel
+
+1. Import project from GitHub
+2. Framework preset: Vite
+3. Build settings:
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+4. Add environment variables
+5. Deploy
+
+## Common Issues
+
+**Database connection fails**
+- Check if PostgreSQL is running
+- Verify DATABASE_URL format
+- Ensure database exists
+
+**JWT token errors**
+- Make sure JWT_SECRET is set
+- Token expires after 7 days by default
+- Login again to get new token
+
+**AI not responding**
+- Verify API key is correct
+- Check API key has credits
+- Look at backend logs for errors
+
+**Build errors**
+- Delete node_modules and package-lock.json
+- Run npm install again
+- Check Node.js version (needs v18+)
+
+## Development Notes
+
+This codebase prioritizes:
+- Readable code over clever abstractions
+- Simple patterns over complex architecture
+- Clear naming over brevity
+- Inline logic over scattered utilities
+
+All code is written to be easily understood in interviews and by junior developers.
+
+## License
+
+MIT
