@@ -5,8 +5,8 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 router.use(protect);
 
-router.get('/project/:projectId/chats', listChats);
-router.post('/project/:projectId/chats', createChat);
+router.get('/', listChats);
+router.post('/', createChat);
 
 router.get('/:chatId/messages', getMessages);
 router.delete('/:chatId', deleteChat);

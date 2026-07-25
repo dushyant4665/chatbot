@@ -19,8 +19,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-        <Route path="/home" element={<PrivateRoute><Chat /></PrivateRoute>} />
-        <Route path="/chat/:projectId" element={<PrivateRoute><Chat /></PrivateRoute>} />
+        <Route path="/home" element={<PrivateRoute><Chat simpleMode /></PrivateRoute>} />
+        <Route path="/simple-chat" element={<PrivateRoute><Chat simpleMode /></PrivateRoute>} />
+        <Route path="/simple-chat/:chatId" element={<PrivateRoute><Chat simpleMode /></PrivateRoute>} />
+        <Route path="/chat/:chatId" element={<PrivateRoute><Chat /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import MarkdownMessage from '../components/MarkdownMessage.jsx';
@@ -62,22 +62,10 @@ function removeAssistantMessage(messages, assistantId) {
   return messages.filter((item) => item.id !== assistantId);
 }
 
-function renderAvatar(role) {
-  if (role === 'USER') {
-    return <div className="msg-avatar msg-avatar-user">U</div>;
-  }
+// Avatars removed for clean ChatGPT-like layout
 
-  return (
-    <div className="msg-avatar msg-avatar-ai" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2l2.4 6.9L21 12l-6.6 3.1L12 22l-2.4-6.9L3 12l6.6-3.1z" />
-      </svg>
-    </div>
-  );
-}
-
-export default function Chat() {
-  const { projectId = '' } = useParams();
+export default function Chat({ simpleMode = false }) {
+  const { chatId = '' } = useParams();
   const navigate = useNavigate();
   const chatStageRef = useRef(null);
   const bottomRef = useRef(null);
@@ -86,14 +74,26 @@ export default function Chat() {
   const shouldAutoScrollRef = useRef(true);
 
   const [projects, setProjects] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [userName, setUserName] = useState('');
   const [messages, setMessages] = useState([]);
-  const [projectTitle, setProjectTitle] = useState('Conversation');
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [error, setError] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    const saved = sessionStorage.getItem('sidebar-open');
+    return saved === null ? true : saved === '1';
+  });
+
+  const activeChat = chats.find((chat) => chat.id === chatId);
+  const activeProject = activeChat?.projectId ? projects.find((project) => project.id === activeChat.projectId) : null;
 
   useEffect(() => {
     if (!getToken()) {
@@ -103,36 +103,53 @@ export default function Chat() {
 
     let ignore = false;
 
-    const loadChat = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
         setError('');
-        shouldAutoScrollRef.current = true;
 
-        const projectsResponse = await api.get('/projects');
-        const projectList = projectsResponse.data.data || [];
+        const [meRes, projectsRes, chatsRes] = await Promise.all([
+          api.get('/auth/me').catch(() => null),
+          api.get('/projects'),
+          api.get('/chat'),
+        ]);
 
         if (ignore) {
           return;
         }
 
-        setProjects(projectList);
+        const allChats = chatsRes.data.data || [];
+        const currentChat = chatId ? allChats.find((chat) => chat.id === chatId) : null;
 
-        const activeProject = projectList.find((item) => item.id === projectId);
-        setProjectTitle(activeProject?.title || 'Conversation');
+        if (currentChat) {
+          if (simpleMode && currentChat.projectId) {
+            navigate(`/chat/${chatId}`, { replace: true });
+            return;
+          }
 
-        if (!projectId) {
+          if (!simpleMode && !currentChat.projectId) {
+            navigate(`/simple-chat/${chatId}`, { replace: true });
+            return;
+          }
+        }
+
+        if (meRes?.data?.data?.name) {
+          setUserName(meRes.data.data.name);
+        }
+
+        setProjects(projectsRes.data.data || []);
+        setChats(allChats);
+
+        if (chatId) {
+          const messageRes = await api.get(`/chat/${chatId}/messages`);
+          if (ignore) {
+            return;
+          }
+
+          setMessages(messageRes.data.data || []);
+        } else {
           setMessages([]);
-          return;
         }
-
-        const messagesResponse = await api.get(`/chat/project/${projectId}`);
-
-        if (ignore) {
-          return;
-        }
-
-        setMessages(messagesResponse.data.data || []);
       } catch (err) {
         if (ignore) {
           return;
@@ -151,17 +168,16 @@ export default function Chat() {
       }
     };
 
-    loadChat();
+    loadData();
 
     return () => {
       ignore = true;
       streamAbortRef.current?.abort();
     };
-  }, [navigate, projectId]);
+  }, [navigate, chatId, simpleMode]);
 
   useEffect(() => {
     const node = chatStageRef.current;
-
     if (!node || !shouldAutoScrollRef.current) {
       return;
     }
@@ -170,19 +186,25 @@ export default function Chat() {
   }, [messages]);
 
   useEffect(() => {
-    const node = textareaRef.current;
+    if (typeof window === 'undefined') {
+      return;
+    }
 
+    sessionStorage.setItem('sidebar-open', isSidebarOpen ? '1' : '0');
+  }, [isSidebarOpen]);
+
+  useEffect(() => {
+    const node = textareaRef.current;
     if (!node) {
       return;
     }
 
     node.style.height = 'auto';
-    node.style.height = `${Math.min(node.scrollHeight, 180)}px`;
+    node.style.height = `${Math.min(node.scrollHeight, 200)}px`;
   }, [draft]);
 
   const handleScroll = () => {
     const node = chatStageRef.current;
-
     if (!node) {
       return;
     }
@@ -191,17 +213,36 @@ export default function Chat() {
     shouldAutoScrollRef.current = distanceFromBottom < 120;
   };
 
+  const handleToggleSidebar = () => {
+    setIsSidebarOpen((current) => !current);
+  };
+
   const handleLogout = () => {
     clearToken();
     navigate('/');
   };
 
-  const openProject = (id) => {
-    if (!id || id === projectId) {
-      return;
-    }
+  const handleNewChat = async () => {
+    try {
+      const response = await api.post('/chat', { title: 'New Chat' });
+      const newChat = response.data.data;
 
-    navigate(`/chat/${id}`);
+      setChats((current) => [newChat, ...current]);
+      navigate(`/simple-chat/${newChat.id}`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const handleNewProjectChat = async (projectId) => {
+    try {
+      const response = await api.post('/chat', { projectId, title: 'New Chat' });
+      const newChat = response.data.data;
+      setChats((current) => [newChat, ...current]);
+      navigate(`/chat/${newChat.id}`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
   };
 
   const handleCreateProject = async (data) => {
@@ -211,14 +252,48 @@ export default function Chat() {
     try {
       const response = await api.post('/projects', data);
       const newProject = response.data.data;
-
       setProjects((current) => [newProject, ...current]);
       setShowProjectModal(false);
-      navigate(`/chat/${newProject.id}`);
+      handleNewProjectChat(newProject.id);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setSavingProject(false);
+    }
+  };
+
+  const handleDeleteChat = async (id) => {
+    if (!window.confirm('Delete this chat?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/chat/${id}`);
+      setChats((current) => current.filter((chat) => chat.id !== id));
+
+      if (chatId === id) {
+        navigate(simpleMode ? '/simple-chat' : '/home');
+      }
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm('Delete this project and all its chats?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/projects/${id}`);
+      setProjects((current) => current.filter((project) => project.id !== id));
+      setChats((current) => current.filter((chat) => chat.projectId !== id));
+
+      if (activeProject?.id === id) {
+        navigate('/home');
+      }
+    } catch (err) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -228,9 +303,7 @@ export default function Chat() {
 
   const addAssistantPlaceholder = (assistantId) => {
     setMessages((current) => {
-      const exists = current.some((item) => item.id === assistantId);
-
-      if (exists) {
+      if (current.some((item) => item.id === assistantId)) {
         return current;
       }
 
@@ -242,14 +315,27 @@ export default function Chat() {
     event.preventDefault();
 
     const messageText = draft.trim();
-
-    if (!messageText || sending || !projectId) {
+    if (!messageText || sending) {
       return;
+    }
+
+    let targetChatId = chatId;
+
+    if (!targetChatId) {
+      try {
+        const response = await api.post('/chat', { title: messageText.slice(0, 40) });
+        const newChat = response.data.data;
+        setChats((current) => [newChat, ...current]);
+        targetChatId = newChat.id;
+        window.history.pushState(null, '', `/simple-chat/${targetChatId}`);
+      } catch (err) {
+        setError(getErrorMessage(err));
+        return;
+      }
     }
 
     const controller = new AbortController();
     streamAbortRef.current = controller;
-
     const userMessageId = `user-${Date.now()}`;
     const assistantMessageId = `assistant-${Date.now()}`;
     let assistantText = '';
@@ -259,45 +345,19 @@ export default function Chat() {
     setError('');
     setSending(true);
     shouldAutoScrollRef.current = true;
-
-    setMessages((current) => [
-      ...current,
-      { id: userMessageId, role: 'USER', content: messageText },
-    ]);
+    setMessages((current) => [...current, { id: userMessageId, role: 'USER', content: messageText }]);
 
     try {
-      const response = await fetch('/api/chat/stream', {
+      const base = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${base}/api/chat/stream`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({
-          projectId,
-          message: messageText,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ chatId: targetChatId, message: messageText }),
         signal: controller.signal,
       });
 
       if (!response.ok || !response.body) {
-        const text = await response.text();
-        let message = 'stream failed';
-
-        if (text) {
-          try {
-            const parsed = JSON.parse(text);
-            message = parsed.message || message;
-          } catch {
-            message = text;
-          }
-        }
-
-        if (response.status === 401 && message.toLowerCase().includes('token')) {
-          handleLogout();
-          return;
-        }
-
-        throw new Error(message);
+        throw new Error('Stream failed');
       }
 
       const reader = response.body.getReader();
@@ -306,7 +366,6 @@ export default function Chat() {
 
       while (true) {
         const { done, value } = await reader.read();
-
         if (done) {
           break;
         }
@@ -317,55 +376,37 @@ export default function Chat() {
 
         for (const block of blocks) {
           const trimmed = block.trim();
-
           if (!trimmed) {
             continue;
           }
 
           const { eventName, dataText } = parseStreamBlock(trimmed);
-
           if (!eventName) {
             continue;
           }
 
           if (eventName === 'start') {
             addAssistantPlaceholder(assistantMessageId);
-            continue;
-          }
-
-          if (eventName === 'chunk') {
+          } else if (eventName === 'chunk') {
             const parsed = readJson(dataText);
             const chunkText = parsed?.text || '';
-
-            if (!chunkText) {
-              continue;
+            if (chunkText) {
+              // Add slight delay for typing effect
+              await new Promise(resolve => setTimeout(resolve, 20));
+              assistantText += chunkText;
+              addAssistantPlaceholder(assistantMessageId);
+              updateAssistantText(assistantMessageId, assistantText, assistantMessageId);
             }
-
-            assistantText += chunkText;
-            addAssistantPlaceholder(assistantMessageId);
-            updateAssistantText(assistantMessageId, assistantText, assistantMessageId);
-            continue;
-          }
-
-          if (eventName === 'done') {
+          } else if (eventName === 'done') {
             const parsed = readJson(dataText);
             const serverMessage = parsed?.message;
             const finalText = serverMessage?.content || assistantText;
             const finalId = serverMessage?.id || assistantMessageId;
-
-            if (!assistantText && !serverMessage) {
-              updateAssistantText(assistantMessageId, '', finalId);
-            } else {
-              updateAssistantText(assistantMessageId, finalText, finalId);
-            }
-
+            updateAssistantText(assistantMessageId, finalText || '', finalId);
             assistantDone = true;
-            continue;
-          }
-
-          if (eventName === 'error') {
+          } else if (eventName === 'error') {
             const parsed = readJson(dataText);
-            throw new Error(parsed?.message || 'AI is unavailable right now');
+            throw new Error(parsed?.message || 'AI error');
           }
         }
       }
@@ -374,18 +415,20 @@ export default function Chat() {
         updateAssistantText(assistantMessageId, assistantText, assistantMessageId);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') {
-        return;
+      if (err?.name !== 'AbortError') {
+        setMessages((current) => removeAssistantMessage(current, assistantMessageId));
+        setError(getErrorMessage(err));
       }
-
-      setMessages((current) => removeAssistantMessage(current, assistantMessageId));
-      setError(getErrorMessage(err));
     } finally {
       if (streamAbortRef.current === controller) {
         streamAbortRef.current = null;
       }
 
       setSending(false);
+
+      if (!chatId && targetChatId) {
+        navigate(`/simple-chat/${targetChatId}`);
+      }
     }
   };
 
@@ -398,136 +441,124 @@ export default function Chat() {
 
   const renderMessage = (message) => {
     const isUser = message.role === 'USER';
-    const isStreaming = Boolean(message.streaming);
 
     return (
       <div key={message.id} className={`chat-row ${isUser ? 'chat-row-user' : 'chat-row-assistant'}`}>
-        {renderAvatar(message.role)}
-
         <div className={`chat-bubble ${isUser ? 'chat-bubble-user' : 'chat-bubble-assistant'}`}>
           {isUser ? (
             <div className="msg-text-user">{message.content}</div>
-          ) : isStreaming && !message.content ? (
-            <div className="typing-pill" aria-live="polite">
-              <span>AI is responding</span>
-              <span className="typing-dots" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-            </div>
           ) : (
-            <MarkdownMessage text={message.content} />
+            <MarkdownMessage text={message.content || '...'} />
           )}
         </div>
       </div>
     );
   };
 
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <div className="welcome-state">
-          <div className="loading-dots" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-          <p className="welcome-sub">Loading conversation...</p>
-        </div>
-      );
-    }
+  const topbarLabel = simpleMode
+    ? (activeChat?.title || 'Simple Chat')
+    : (activeProject ? `Agent: ${activeProject.title}` : 'Project Chat');
 
-    if (!projectId) {
-      return (
-        <div className="welcome-state">
-          <div className="welcome-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M4 4l16 16" />
-              <path d="M20 4L4 20" />
-            </svg>
-          </div>
-          <h2 className="welcome-title">Create or open a project to start chatting.</h2>
-          <p className="welcome-sub">Your projects stay in the sidebar.</p>
-        </div>
-      );
-    }
-
-    if (messages.length === 0) {
-      return (
-        <div className="welcome-state">
-          <div className="welcome-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <h2 className="welcome-title">How can I help today?</h2>
-          <p className="welcome-sub">Send a message to start the conversation.</p>
-        </div>
-      );
-    }
-
-    return <div className="chat-list">{messages.map(renderMessage)}</div>;
-  };
+  const welcomeSubText = simpleMode
+    ? 'Start a direct conversation.'
+    : (activeProject ? `Chatting with Agent: ${activeProject.title}` : 'Open a project to begin chatting.');
 
   return (
     <>
       <div className="workspace">
+        <div 
+          className={`sidebar-backdrop ${isSidebarOpen ? 'active' : ''}`}
+          onClick={handleToggleSidebar}
+          aria-hidden="true"
+        />
+        
         <Sidebar
           projects={projects}
-          activeProjectId={projectId}
-          onProjectClick={openProject}
+          chats={chats}
+          activeChatId={chatId}
+          activeProjectId={activeProject?.id}
+          onChatClick={(id, projectId) => navigate(projectId ? `/chat/${id}` : `/simple-chat/${id}`)}
+          onNewChat={handleNewChat}
+          onNewProjectChat={handleNewProjectChat}
           onNewProject={() => setShowProjectModal(true)}
+          onDeleteChat={handleDeleteChat}
+          onDeleteProject={handleDeleteProject}
           onLogout={handleLogout}
+          userName={userName}
+          isOpen={isSidebarOpen}
         />
 
         <main className="main">
           <div className="main-topbar">
             <div className="topbar-left">
-              <span className="topbar-project-name">{projectId ? projectTitle : 'Projects'}</span>
+              <button className="topbar-btn sidebar-toggle-btn" type="button" onClick={handleToggleSidebar} aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'} title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 6h16" />
+                  <path d="M4 12h16" />
+                  <path d="M4 18h16" />
+                </svg>
+              </button>
+              <span className="topbar-project-name">{topbarLabel}</span>
             </div>
           </div>
 
           <div className="chat-main" ref={chatStageRef} onScroll={handleScroll}>
             <div className="chat-inner">
-              {error ? <div className="error-bar">{error}</div> : null}
-              {renderContent()}
+              {error && <div className="error-bar">{error}</div>}
+
+              {loading ? (
+                <div className="welcome-state">
+                  <div className="loading-dots" aria-hidden="true"><span /><span /><span /></div>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="welcome-state">
+                  <div className="welcome-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <h2 className="welcome-title">How can I help today?</h2>
+                  <p className="welcome-sub">{welcomeSubText}</p>
+                </div>
+              ) : (
+                <div className="chat-list">{messages.map(renderMessage)}</div>
+              )}
               <div ref={bottomRef} style={{ height: '24px' }} />
             </div>
           </div>
 
-          {projectId ? (
-            <footer className="composer-wrap">
-              <div className="composer-inner">
-                <form className="composer-box" onSubmit={handleSend}>
+          <footer className="composer-wrap">
+            <div className="composer-inner">
+              <form className="composer-box" onSubmit={handleSend}>
+                <div className="composer-row">
                   <textarea
                     ref={textareaRef}
                     className="composer-textarea"
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Message"
+                    placeholder="Message..."
                     rows="1"
-                    aria-label="Message input"
                   />
-
-                  <div className="composer-actions">
-                    <p className="composer-help">Enter to send, Shift + Enter for a new line.</p>
-                    <button className="send-btn" type="submit" disabled={sending || !draft.trim()} aria-label="Send message">
-                      Send
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </footer>
-          ) : null}
+                </div>
+                <div className="composer-actions">
+                  <p className="composer-help">Enter to send · Shift + Enter for new line</p>
+                  <button className="send-btn" type="submit" disabled={sending || !draft.trim()}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </footer>
         </main>
       </div>
 
       <ProjectModal
         open={showProjectModal}
-        title="New Project"
-        subtitle="Create a clean space for one conversation."
+        title="Create New Agent"
+        subtitle="Give your agent a name and description."
         submitLabel={savingProject ? 'Creating...' : 'Create'}
         saving={savingProject}
         onClose={() => setShowProjectModal(false)}
@@ -536,3 +567,4 @@ export default function Chat() {
     </>
   );
 }
+

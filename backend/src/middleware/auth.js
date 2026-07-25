@@ -1,31 +1,39 @@
 ﻿import jwt from 'jsonwebtoken';
 
-export const protect = (req, res, next) => {
-  const header = req.headers.authorization || '';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
-  if (!header.startsWith('Bearer ')) {
+// Middleware to protect routes - verifies JWT token
+export const protect = (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+
+  // Check if authorization header exists and starts with "Bearer "
+  if (!authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
       status: 'error',
-      message: 'missing authorization token',
+      message: 'Authorization token is missing'
     });
   }
 
-  const token = header.slice(7);
+  // Extract token (remove "Bearer " prefix)
+  const token = authHeader.slice(7);
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+    // Verify and decode token
+    const decoded = jwt.verify(token, JWT_SECRET);
 
+    // Attach user info to request object
     req.user = {
-      userId: payload.userId,
-      email: payload.email,
-      name: payload.name,
+      userId: decoded.userId,
+      email: decoded.email,
+      name: decoded.name
     };
 
     next();
+
   } catch (error) {
     return res.status(401).json({
       status: 'error',
-      message: 'invalid or expired token',
+      message: 'Invalid or expired token'
     });
   }
 };
