@@ -19,6 +19,7 @@ export const register = async (req, res) => {
     const token = jwt.sign({ userId: user.id, email, name }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ status: 'success', data: { token, user: { id: user.id, name, email } } });
   } catch (error) {
+    console.error('PRISMA ERROR:', error);
     res.status(500).json({ error: error.message });
   }
 };

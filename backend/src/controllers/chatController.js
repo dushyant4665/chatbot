@@ -1,11 +1,9 @@
 import prisma from '../config/database.js';
 
-// Helper to write SSE events
 function sse(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-// 1. Create a new chat inside a project
 export const createChat = async (req, res, next) => {
   try {
     const userId = req.user.userId;
@@ -25,7 +23,6 @@ export const createChat = async (req, res, next) => {
   }
 };
 
-// 2. List all chats in a project
 export const listChats = async (req, res, next) => {
   try {
     const userId = req.user.userId;
@@ -48,7 +45,6 @@ export const listChats = async (req, res, next) => {
   }
 };
 
-// 3. Delete a chat
 export const deleteChat = async (req, res, next) => {
   try {
     const userId = req.user.userId;
@@ -68,7 +64,6 @@ export const deleteChat = async (req, res, next) => {
   }
 };
 
-// 4. Get messages in a chat
 export const getMessages = async (req, res, next) => {
   try {
     const userId = req.user.userId;
@@ -90,32 +85,27 @@ export const getMessages = async (req, res, next) => {
   }
 };
 
-// 5. Stream AI response
 export const sendMessageStream = async (req, res, next) => {
   const { chatId, message } = req.body;
   const userId = req.user.userId;
 
   try {
-    // Verify chat belongs to user
     const chat = await prisma.chat.findFirst({
       where: { id: chatId, project: { userId } }
     });
     if (!chat) return res.status(404).json({ error: 'Chat not found' });
 
-    // Set SSE headers
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
-    // Save user message
     const userMessage = await prisma.chatMessage.create({
       data: { role: 'USER', content: message, chatId }
     });
     sse(res, 'start', { message: userMessage });
 
-    // Load chat history (last 15 messages)
     const history = await prisma.chatMessage.findMany({
       where: { chatId },
       orderBy: { createdAt: 'asc' },
@@ -127,7 +117,6 @@ export const sendMessageStream = async (req, res, next) => {
       content: m.content
     }));
 
-    // Add system prompt if project has one
     const systemPrompt = await prisma.prompt.findFirst({
       where: { projectId: chat.projectId },
       orderBy: { createdAt: 'desc' }
@@ -137,7 +126,6 @@ export const sendMessageStream = async (req, res, next) => {
       content: systemPrompt?.content || 'You are a helpful AI assistant. Always format your responses using clean Markdown. Use numbered lists, bullet points, and bold text to structure your answers clearly.'
     });
 
-    // Call AI API
     const apiKey = process.env.COMET_API_KEY || process.env.GROQ_API_KEY;
     const isGroq = apiKey?.startsWith('gsk_');
     const baseUrl = isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.cometapi.com/v1';
@@ -158,7 +146,6 @@ export const sendMessageStream = async (req, res, next) => {
       return res.end();
     }
 
-    // Read streaming chunks
     const reader = aiResponse.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
@@ -186,17 +173,16 @@ export const sendMessageStream = async (req, res, next) => {
               fullResponse += text;
               sse(res, 'chunk', { text });
             }
-          } catch { /* ignore bad chunks */ }
+          } catch { error}
         }
       }
     }
 
-    // Save AI response
+
     const assistantMessage = await prisma.chatMessage.create({
       data: { role: 'ASSISTANT', content: fullResponse, chatId }
     });
 
-    // Update chat title from first message if still default
     if (chat.title === 'New Chat' && message.length > 0) {
       await prisma.chat.update({
         where: { id: chatId },

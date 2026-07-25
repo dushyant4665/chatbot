@@ -38,6 +38,7 @@ export default function ProjectModal({
       title={title}
       subtitle={subtitle}
       onClose={onClose}
+      footer={(
         <>
           <button className="btn-ghost" type="button" onClick={onClose}>
             Cancel
@@ -46,6 +47,7 @@ export default function ProjectModal({
             {saving ? 'Saving...' : submitLabel}
           </button>
         </>
+      )}
     >
       <form id="project-form" className="stack" onSubmit={handleSubmit}>
         <div>
