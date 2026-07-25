@@ -1,62 +1,127 @@
-# My Chatbot Project
+# Chatbot Platform
 
-Hey! This is a simple but powerful Chatbot platform I built. It works just like ChatGPT where you can create projects, chat with an AI, and even upload files!
+A full-stack AI chatbot platform where users can create projects, manage conversations, and chat with an AI in real-time.
+
+**Live Demo:** [chatbot-roan-three-16.vercel.app](https://chatbot-roan-three-16.vercel.app)
+
+---
 
 ## What it does
-- **Accounts:** You can sign up and log in securely.
-- **Projects:** Create different projects for different topics.
-- **Chat:** Talk to the AI in real-time. The text types out smoothly without any lag!
-- **File Uploads:** You can upload PDFs or Word documents. The app reads them directly in your browser and sends the text to the AI so it knows what you're talking about.
 
-## How it works
+- Sign up and log in with JWT authentication
+- Create multiple projects (like workspaces)
+- Start chats inside each project
+- Talk to the AI with real-time streaming responses
+- Attach files (PDF, DOCX, TXT) as context for the AI
 
-Here is a simple flow of how the system talks to each other:
+---
+
+## Architecture
 
 ```mermaid
 graph TD
-    A[You / User] -->|Type message & upload file| B[Frontend React]
-    B -->|Send data| C[Backend Node.js]
-    C -->|Save to DB| D[(PostgreSQL)]
-    C -->|Ask AI| E[Groq / OpenAI API]
-    E -->|Stream response back| C
-    C -->|Send words one by one| B
-    B -->|Show smooth typing| A
+    User([User]) -->|Opens app| Frontend
+
+    subgraph Frontend [Frontend - React + Vite]
+        UI[Pages & Components]
+        Auth[JWT stored in localStorage]
+    end
+
+    Frontend -->|REST API calls| Backend
+
+    subgraph Backend [Backend - Node.js + Express]
+        Routes[Routes]
+        Controllers[Controllers]
+        Middleware[Auth Middleware - JWT verify]
+    end
+
+    Controllers -->|Prisma ORM| DB[(PostgreSQL - Render)]
+    Controllers -->|Stream request| Groq[Groq AI API]
+    Groq -.->|SSE chunks| Controllers
+    Controllers -.->|Stream response| Frontend
 ```
+
+---
 
 ## Tech Stack
-- **Frontend:** React, Vite (Fast and clean UI)
-- **Backend:** Node.js, Express (Simple and flat structure)
-- **Database:** PostgreSQL with Prisma
-- **AI:** Groq API (Super fast AI responses)
 
-## How to run it on your computer
+| Layer | Tech |
+|---|---|
+| Frontend | React, Vite |
+| Backend | Node.js, Express |
+| Database | PostgreSQL + Prisma ORM |
+| AI | Groq API (Llama 3) |
+| Auth | JWT + bcrypt |
+| Hosting | Vercel (frontend), Render (backend + DB) |
 
-### 1. Database
-Make sure you have PostgreSQL running. 
-Go to the `backend` folder and run:
+---
+
+## Running Locally
+
+### 1. Clone the repo
+
 ```bash
-npm install
-npx prisma generate
-npx prisma migrate dev --name init
+git clone https://github.com/dushyant4665/chatbot.git
+cd chatbot
 ```
 
-### 2. Backend Server
-In the `backend` folder, create a file named `.env` and put this inside:
+### 2. Backend setup
+
+```bash
+cd backend
+npm install
 ```
+
+Create a `.env` file:
+
+```env
 PORT=5000
-DATABASE_URL="postgresql://username:password@localhost:5432/botdb?schema=public"
-JWT_SECRET="my-secret-key"
+DATABASE_URL="postgresql://user:pass@localhost:5432/botdb"
+JWT_SECRET="your-secret-key"
 GROQ_API_KEY="your-groq-api-key"
 ```
-Then start the server:
+
+Run database migrations and start:
+
 ```bash
+npx prisma generate
+npx prisma migrate dev --name init
 npm run dev
 ```
 
-### 3. Frontend App
-Open a new terminal, go to the `frontend` folder and run:
+### 3. Frontend setup
+
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
-Now just open `http://localhost:5173` in your browser and you're good to go!
+
+Open `http://localhost:5173`
+
+---
+
+## Database Schema
+
+```
+User
+ └── Project (many)
+      ├── Chat (many)
+      │    └── ChatMessage (many)
+      └── Prompt (many)
+```
+
+---
+
+## API Endpoints
+
+| Method | Route | Description |
+|---|---|---|
+| POST | `/api/auth/register` | Create account |
+| POST | `/api/auth/login` | Login |
+| GET | `/api/projects` | List projects |
+| POST | `/api/projects` | Create project |
+| GET | `/api/chat/project/:id/chats` | List chats |
+| POST | `/api/chat/project/:id/chats` | Create chat |
+| POST | `/api/chat/stream` | Stream AI response |
+| DELETE | `/api/chat/:id` | Delete chat |
