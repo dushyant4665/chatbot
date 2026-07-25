@@ -178,7 +178,6 @@ export const sendMessageStream = async (req, res, next) => {
       }
     }
 
-
     const assistantMessage = await prisma.chatMessage.create({
       data: { role: 'ASSISTANT', content: fullResponse, chatId }
     });

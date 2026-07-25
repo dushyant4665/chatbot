@@ -4,7 +4,7 @@ import cors from 'cors';
 
 import authRoutes from './routes/authRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
-import chatRoutes from './routes/chatRoutes.js';  // <-- Yeh line add karo
+import chatRoutes from './routes/chatRoutes.js';  
 
 import { errorHandler } from './middleware/errorHandler.js';
 

@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+﻿import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import Chat from './pages/Chat.jsx';
 import Login from './pages/Login.jsx';
@@ -19,9 +19,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-        {/* /home = no chat selected yet, /chat/:chatId = specific chat open */}
         <Route path="/home" element={<PrivateRoute><Chat /></PrivateRoute>} />
-        <Route path="/chat/:chatId" element={<PrivateRoute><Chat /></PrivateRoute>} />
+        <Route path="/chat/:projectId" element={<PrivateRoute><Chat /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

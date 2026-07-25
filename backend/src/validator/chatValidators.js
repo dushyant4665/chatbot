@@ -25,4 +25,3 @@ export const clearChatSchema = z.object({
     projectId: z.string().cuid('project id must be a valid cuid'),
   }),
 });
-

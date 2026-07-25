@@ -45,7 +45,6 @@ export const deleteProject = async (req, res, next) => {
     const userId = req.user.userId;
     const { projectId } = req.params;
 
-    // Make sure project belongs to this user
     const project = await prisma.project.findFirst({
       where: { id: projectId, userId }
     });
@@ -53,8 +52,6 @@ export const deleteProject = async (req, res, next) => {
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
-
-    // Rely on Cascade delete for associated chats and messages
 
     await prisma.project.delete({ where: { id: projectId } });
 

@@ -1,9 +1,17 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import api from '../lib/api.js';
 import { getErrorMessage } from '../lib/error.js';
 import { saveToken } from '../lib/session.js';
+
+function AuthMark() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2l2.4 6.9L21 12l-6.6 3.1L12 22l-2.4-6.9L3 12l6.6-3.1z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -32,14 +40,16 @@ export default function Login() {
     <div className="auth-page">
       <div className="auth-box">
         <div className="auth-logo">
-          <div className="auth-logo-mark">✦</div>
-          <span className="auth-logo-name">Workspace AI</span>
+          <div className="auth-logo-mark">
+            <AuthMark />
+          </div>
+          <span className="auth-logo-name">AI Chat</span>
         </div>
 
-        <h1 className="auth-heading">Welcome back</h1>
-        <p className="auth-sub">Sign in to your account to continue</p>
+        <h1 className="auth-heading">Sign in</h1>
+        <p className="auth-sub">Open your workspace and continue chatting.</p>
 
-        {error && <div className="auth-error">{error}</div>}
+        {error ? <div className="auth-error">{error}</div> : null}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -49,7 +59,7 @@ export default function Login() {
               className="form-input"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
               required
               autoFocus
@@ -63,24 +73,19 @@ export default function Login() {
               className="form-input"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="Your password"
               required
             />
           </div>
 
-          <button
-            className="btn btn-primary btn-block"
-            type="submit"
-            disabled={loading}
-            style={{ marginTop: '6px' }}
-          >
+          <button className="btn btn-primary btn-block" type="submit" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
         <p className="auth-footer">
-          Don't have an account? <Link to="/register">Sign up</Link>
+          No account? <Link to="/register">Create one</Link>
         </p>
       </div>
     </div>

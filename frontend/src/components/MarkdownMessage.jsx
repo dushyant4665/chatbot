@@ -1,38 +1,33 @@
 import { useState } from 'react';
 
-// ── Inline renderer (bold, italic, code, etc.) ────────────────
-
 function renderInline(text) {
   const parts = [];
-  // Split on bold, italic, code, or bold+italic. 
-  // We'll use a simpler regex that matches chunks and processes them.
+
   let current = text;
   let keyCount = 0;
 
   const pushPart = (element) => { parts.push(<span key={keyCount++}>{element}</span>); };
 
-  // This is a naive regex loop to replace standard markdown.
-  // We do bold first, then italic, then code. (To keep it simple without heavy AST)
   const renderFormatted = (str) => {
-    // Process code `...`
+
     const codeParts = str.split(/(`[^`]+`)/g);
     return codeParts.map((part, i) => {
       if (part.startsWith('`') && part.endsWith('`')) {
         return <code key={`code-${i}`} className="md-inline-code">{part.slice(1, -1)}</code>;
       }
-      // Process bold **...**
+
       const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
       return boldParts.map((bp, j) => {
         if (bp.startsWith('**') && bp.endsWith('**')) {
           return <strong key={`b-${i}-${j}`}>{bp.slice(2, -2)}</strong>;
         }
-        // Process italic *...* or _..._
+
         const italicParts = bp.split(/(\*[^*]+\*|_[^_]+_)/g);
         return italicParts.map((ip, k) => {
           if ((ip.startsWith('*') && ip.endsWith('*')) || (ip.startsWith('_') && ip.endsWith('_'))) {
             return <em key={`i-${i}-${j}-${k}`}>{ip.slice(1, -1)}</em>;
           }
-          return ip; // Plain text
+          return ip; 
         });
       });
     });
@@ -40,8 +35,6 @@ function renderInline(text) {
 
   return renderFormatted(text);
 }
-
-// ── Table parser helpers ──────────────────────────────────────
 
 function splitRow(row) {
   return row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
@@ -51,14 +44,12 @@ function isSeparator(line) {
   return splitRow(line).every((c) => /^:?-{3,}:?$/.test(c));
 }
 
-// ── Markdown parser ───────────────────────────────────────────
-
 function parseMarkdown(text) {
   const lines = text.replace(/\r/g, '').split('\n');
   const blocks = [];
   let para = [];
   let list = [];
-  let listType = 'ul'; // 'ul' or 'ol'
+  let listType = 'ul'; 
   let codeLines = [];
   let codeLang = '';
   let inCode = false;
@@ -90,7 +81,6 @@ function parseMarkdown(text) {
     if (t.startsWith('### ')) { flushPara(); flushList(); blocks.push({ type: 'h3', text: t.slice(4) }); continue; }
     if (t.startsWith('#### ')) { flushPara(); flushList(); blocks.push({ type: 'h4', text: t.slice(5) }); continue; }
 
-    // Unordered List
     if (t.startsWith('- ') || t.startsWith('* ')) {
       flushPara();
       if (list.length > 0 && listType !== 'ul') flushList();
@@ -99,7 +89,6 @@ function parseMarkdown(text) {
       continue;
     }
 
-    // Ordered List
     const olMatch = t.match(/^(\d+)\.\s+(.*)/);
     if (olMatch) {
       flushPara();
@@ -109,7 +98,6 @@ function parseMarkdown(text) {
       continue;
     }
 
-    // Blockquote
     if (t.startsWith('> ')) {
       flushPara(); flushList();
       blocks.push({ type: 'blockquote', text: t.slice(2) });
@@ -138,8 +126,6 @@ function parseMarkdown(text) {
   return blocks;
 }
 
-// ── Code block with copy button ───────────────────────────────
-
 function CodeBlock({ lang, text }) {
   const [copied, setCopied] = useState(false);
 
@@ -149,7 +135,7 @@ function CodeBlock({ lang, text }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // silent
+
     }
   };
 
@@ -169,8 +155,6 @@ function CodeBlock({ lang, text }) {
     </div>
   );
 }
-
-// ── Main component ────────────────────────────────────────────
 
 export default function MarkdownMessage({ text }) {
   const blocks = parseMarkdown(text || '');

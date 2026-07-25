@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 
 import Modal from './Modal.jsx';
 
@@ -68,16 +68,15 @@ export default function ProjectModal({
 
         <div style={{ marginTop: '16px' }}>
           <label className="modal-label" htmlFor="projectDescription">
-            System Prompt (Agent Behavior)
+            Description
           </label>
           <textarea
             id="projectDescription"
-            className="modal-input"
+            className="modal-textarea"
             value={projectDescription}
             onChange={(event) => setProjectDescription(event.target.value)}
-            placeholder="e.g. You are a senior frontend developer. Reply in code."
+            placeholder="Short note about this project"
             rows="4"
-            style={{ minHeight: '100px', resize: 'vertical' }}
           />
         </div>
       </form>

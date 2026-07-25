@@ -1,11 +1,9 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "postgresql"
 }
-
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -13,69 +11,51 @@ model User {
   passwordHash String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
   projects     Project[]
-
   @@map("users")
 }
-
 model Project {
   id          String   @id @default(cuid())
   title       String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   chats       Chat[]
   prompts     Prompt[]
-
   @@map("projects")
 }
-
-// A Chat lives inside a Project — one project can have many chats
 model Chat {
   id        String   @id @default(cuid())
   title     String   @default("New Chat")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
   messages  ChatMessage[]
-
   @@map("chats")
 }
-
 model Prompt {
   id          String   @id @default(cuid())
   title       String
   content     String   @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
   @@map("prompts")
 }
-
 model ChatMessage {
   id        String      @id @default(cuid())
   role      MessageRole
   content   String      @db.Text
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-
   chatId    String
   chat      Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
-
   @@map("chat_messages")
 }
-
 enum MessageRole {
   USER
   ASSISTANT
