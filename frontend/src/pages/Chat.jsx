@@ -4,7 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
 import MarkdownMessage from '../components/MarkdownMessage.jsx';
-import Modal from '../components/Modal.jsx';
+import ProjectModal from '../components/ProjectModal.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import api from '../lib/api.js';
 import { getErrorMessage } from '../lib/error.js';
@@ -76,7 +76,6 @@ export default function Chat() {
 
   // Modal state
   const [showNewProject, setShowNewProject] = useState(false);
-  const [newProjectTitle, setNewProjectTitle] = useState('');
   const [savingProject, setSavingProject] = useState(false);
 
   const activeChat = projects.flatMap(p => p.chats || []).find(c => c.id === chatId);
@@ -347,17 +346,17 @@ export default function Chat() {
   const handleLogout = () => { clearToken(); navigate('/'); };
 
   // ─── Project / Chat CRUD ──────────────────────────────────
-  const handleNewProject = async (e) => {
-    e.preventDefault();
+  const handleNewProject = async ({ title, description }) => {
     setSavingProject(true);
     try {
-      const res = await api.post('/projects', { title: newProjectTitle });
-      const proj = { ...res.data.data, chats: [] };
-      setProjects(prev => [proj, ...prev]);
+      const res = await api.post('/projects', { title, description });
+      const newProj = res.data.data;
+      setProjects(p => [newProj, ...p]);
       setShowNewProject(false);
-      setNewProjectTitle('');
-    } catch (err) {
-      setError(getErrorMessage(err));
+      navigate(`/chat/${newProj.id}`);
+    } catch (error) {
+      console.error(error);
+      alert(getErrorMessage(error));
     } finally {
       setSavingProject(false);
     }
@@ -577,35 +576,14 @@ export default function Chat() {
         )}
       </main>
 
-      {/* New Project Modal */}
-      {showNewProject && (
-        <Modal
-          title="New Project"
-          onClose={() => setShowNewProject(false)}
-          footer={
-            <>
-              <button className="btn-ghost" type="button" onClick={() => setShowNewProject(false)}>Cancel</button>
-              <button className="btn-modal-primary" type="submit" form="new-proj-form" disabled={savingProject}>
-                {savingProject ? 'Creating…' : 'Create'}
-              </button>
-            </>
-          }
-        >
-          <form id="new-proj-form" onSubmit={handleNewProject}>
-            <label className="modal-label" htmlFor="new-proj-input">Project name</label>
-            <input
-              id="new-proj-input"
-              className="modal-input"
-              type="text"
-              value={newProjectTitle}
-              onChange={e => setNewProjectTitle(e.target.value)}
-              placeholder="e.g. My Workspace"
-              required
-              autoFocus
-            />
-          </form>
-        </Modal>
-      )}
+      <ProjectModal
+        open={showNewProject}
+        title="New Project"
+        submitLabel="Create"
+        saving={savingProject}
+        onClose={() => setShowNewProject(false)}
+        onSubmit={handleNewProject}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import Sidebar from '../components/Sidebar.jsx';
-import Modal from '../components/Modal.jsx';
+import ProjectModal from '../components/ProjectModal.jsx';
 import api from '../lib/api.js';
 import { getErrorMessage } from '../lib/error.js';
 import { clearToken, getToken } from '../lib/session.js';
@@ -67,17 +67,15 @@ export default function Dashboard() {
     if (id) navigate(`/chat/${id}`);
   };
 
-  const handleCreate = async (event) => {
-    event.preventDefault();
+  const handleCreate = async ({ title, description }) => {
     setSaving(true);
     setError('');
 
     try {
-      const res = await api.post('/projects', { title });
+      const res = await api.post('/projects', { title, description });
       const newProject = res.data.data;
       setProjects((prev) => [newProject, ...prev]);
       setShowModal(false);
-      setTitle('');
       navigate(`/chat/${newProject.id}`);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -142,34 +140,14 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {showModal && (
-        <Modal
-          title="New project"
-          onClose={() => setShowModal(false)}
-          footer={
-            <>
-              <button className="btn-ghost" type="button" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn-modal-primary" type="submit" form="create-project-form" disabled={saving}>
-                {saving ? 'Creating...' : 'Create'}
-              </button>
-            </>
-          }
-        >
-          <form id="create-project-form" onSubmit={handleCreate}>
-            <label className="modal-label" htmlFor="proj-title">Project name</label>
-            <input
-              id="proj-title"
-              className="modal-input"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Code refactor assistant"
-              required
-              autoFocus
-            />
-          </form>
-        </Modal>
-      )}
+      <ProjectModal
+        open={showModal}
+        title="New project"
+        submitLabel="Create"
+        saving={saving}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleCreate}
+      />
     </div>
   );
 }

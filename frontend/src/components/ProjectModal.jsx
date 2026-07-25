@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import Modal from './Modal.jsx';
 
@@ -38,44 +38,44 @@ export default function ProjectModal({
       title={title}
       subtitle={subtitle}
       onClose={onClose}
-      footer={(
-        <div className="inline-actions end">
-          <button className="button button-secondary" type="button" onClick={onClose}>
+        <>
+          <button className="btn-ghost" type="button" onClick={onClose}>
             Cancel
           </button>
-          <button className="button button-primary" type="submit" form="project-form" disabled={saving}>
-            {submitLabel}
+          <button className="btn-modal-primary" type="submit" form="project-form" disabled={saving}>
+            {saving ? 'Saving...' : submitLabel}
           </button>
-        </div>
-      )}
+        </>
     >
       <form id="project-form" className="stack" onSubmit={handleSubmit}>
         <div>
-          <label className="field-label" htmlFor="projectTitle">
-            Project title
+          <label className="modal-label" htmlFor="projectTitle">
+            Project name
           </label>
           <input
             id="projectTitle"
-            className="field"
+            className="modal-input"
             type="text"
             value={projectTitle}
             onChange={(event) => setProjectTitle(event.target.value)}
-            placeholder="My first project"
+            placeholder="e.g. My Workspace"
             required
+            autoFocus
           />
         </div>
 
-        <div>
-          <label className="field-label" htmlFor="projectDescription">
-            Description
+        <div style={{ marginTop: '16px' }}>
+          <label className="modal-label" htmlFor="projectDescription">
+            System Prompt (Agent Behavior)
           </label>
           <textarea
             id="projectDescription"
-            className="textarea"
+            className="modal-input"
             value={projectDescription}
             onChange={(event) => setProjectDescription(event.target.value)}
-            placeholder="Short note about this project"
+            placeholder="e.g. You are a senior frontend developer. Reply in code."
             rows="4"
+            style={{ minHeight: '100px', resize: 'vertical' }}
           />
         </div>
       </form>

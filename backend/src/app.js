@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 
 import authRoutes from './routes/authRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
-import promptRoutes from './routes/promptRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';  // <-- Yeh line add karo
 
 import { errorHandler } from './middleware/errorHandler.js';
@@ -30,7 +29,6 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/prompts', promptRoutes);
 app.use('/api/chat', chatRoutes); 
 
 app.use((req, res) => {

@@ -9,6 +9,16 @@ export const createProject = async (req, res, next) => {
       data: { title, description, userId }
     });
 
+    if (description && description.trim().length > 0) {
+      await prisma.prompt.create({
+        data: {
+          title: 'System Prompt',
+          content: description.trim(),
+          projectId: project.id
+        }
+      });
+    }
+
     res.status(201).json({ status: 'success', data: project });
   } catch (error) {
     next(error);
