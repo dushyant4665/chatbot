@@ -8,30 +8,65 @@ import api from '../lib/api.js';
 import { getErrorMessage } from '../lib/error.js';
 import { clearToken, getToken } from '../lib/session.js';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function readJson(text) {
-  try { return JSON.parse(text); } catch { return null; }
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 function parseStreamBlock(block) {
   const lines = block.replace(/\r/g, '').split('\n');
   let eventName = '';
   let dataText = '';
+
   for (const line of lines) {
-    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim();
+    }
+
     if (line.startsWith('data:')) {
-      const val = line.slice(5).trimStart();
-      dataText = dataText ? `${dataText}\n${val}` : val;
+      const value = line.slice(5).trimStart();
+      dataText = dataText ? `${dataText}\n${value}` : value;
     }
   }
+
   return { eventName, dataText };
+}
+
+function upsertAssistantMessage(messages, assistantId, content, finalId) {
+  const messageId = finalId || assistantId;
+  const index = messages.findIndex((item) => item.id === assistantId || item.id === messageId);
+  const nextMessage = {
+    id: messageId,
+    role: 'ASSISTANT',
+    content,
+    streaming: false,
+  };
+
+  if (index === -1) {
+    return [...messages, nextMessage];
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[index] = nextMessage;
+  return nextMessages;
+}
+
+function removeAssistantMessage(messages, assistantId) {
+  return messages.filter((item) => item.id !== assistantId);
 }
 
 function renderAvatar(role) {
   if (role === 'USER') {
     return <div className="msg-avatar msg-avatar-user">U</div>;
   }
+
   return (
     <div className="msg-avatar msg-avatar-ai" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,12 +76,9 @@ function renderAvatar(role) {
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function Chat() {
   const { projectId = '' } = useParams();
   const navigate = useNavigate();
-
   const chatStageRef = useRef(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -55,8 +87,7 @@ export default function Chat() {
 
   const [projects, setProjects] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [activeChatId, setActiveChatId] = useState('');
-  const [projectTitle, setProjectTitle] = useState('');
+  const [projectTitle, setProjectTitle] = useState('Conversation');
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -64,109 +95,126 @@ export default function Chat() {
   const [savingProject, setSavingProject] = useState(false);
   const [error, setError] = useState('');
 
-  // ─── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!getToken()) navigate('/');
-  }, [navigate]);
+    if (!getToken()) {
+      navigate('/');
+      return;
+    }
 
-  // ─── Load data when projectId changes ───────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
+    let ignore = false;
 
-    const load = async () => {
+    const loadChat = async () => {
       try {
         setLoading(true);
         setError('');
-        setMessages([]);
-        setActiveChatId('');
         shouldAutoScrollRef.current = true;
 
-        // always load projects list for sidebar
-        const projRes = await api.get('/projects');
-        const projectList = projRes.data.data || [];
-        if (!cancelled) setProjects(projectList);
+        const projectsResponse = await api.get('/projects');
+        const projectList = projectsResponse.data.data || [];
 
-        if (!projectId) {
-          if (!cancelled) setProjectTitle('');
+        if (ignore) {
           return;
         }
 
-        const active = projectList.find((p) => p.id === projectId);
-        if (!cancelled) setProjectTitle(active?.title || 'Project');
+        setProjects(projectList);
 
-        // get or create the first chat for this project
-        const chatsRes = await api.get(`/chat/project/${projectId}/chats`);
-        let chats = chatsRes.data.data || [];
+        const activeProject = projectList.find((item) => item.id === projectId);
+        setProjectTitle(activeProject?.title || 'Conversation');
 
-        let chat;
-        if (chats.length === 0) {
-          // auto-create a default chat
-          const newChatRes = await api.post(`/chat/project/${projectId}/chats`, { title: 'Chat' });
-          chat = newChatRes.data.data;
-        } else {
-          chat = chats[0];
+        if (!projectId) {
+          setMessages([]);
+          return;
         }
 
-        if (cancelled) return;
-        setActiveChatId(chat.id);
+        const messagesResponse = await api.get(`/chat/project/${projectId}`);
 
-        // load messages for that chat
-        const msgsRes = await api.get(`/chat/${chat.id}/messages`);
-        if (!cancelled) setMessages(msgsRes.data.data || []);
+        if (ignore) {
+          return;
+        }
+
+        setMessages(messagesResponse.data.data || []);
       } catch (err) {
-        if (cancelled) return;
-        if (err?.response?.status === 401) { clearToken(); navigate('/'); return; }
+        if (ignore) {
+          return;
+        }
+
+        if (err?.response?.status === 401) {
+          handleLogout();
+          return;
+        }
+
         setError(getErrorMessage(err));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       }
     };
 
-    load();
+    loadChat();
+
     return () => {
-      cancelled = true;
+      ignore = true;
       streamAbortRef.current?.abort();
     };
   }, [navigate, projectId]);
 
-  // ─── Auto-scroll ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!chatStageRef.current || !shouldAutoScrollRef.current) return;
+    const node = chatStageRef.current;
+
+    if (!node || !shouldAutoScrollRef.current) {
+      return;
+    }
+
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ─── Auto-resize textarea ───────────────────────────────────────────────────
   useEffect(() => {
     const node = textareaRef.current;
-    if (!node) return;
+
+    if (!node) {
+      return;
+    }
+
     node.style.height = 'auto';
     node.style.height = `${Math.min(node.scrollHeight, 180)}px`;
   }, [draft]);
 
   const handleScroll = () => {
     const node = chatStageRef.current;
-    if (!node) return;
-    const dist = node.scrollHeight - node.scrollTop - node.clientHeight;
-    shouldAutoScrollRef.current = dist < 120;
+
+    if (!node) {
+      return;
+    }
+
+    const distanceFromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 120;
   };
 
-  const handleLogout = () => { clearToken(); navigate('/'); };
+  const handleLogout = () => {
+    clearToken();
+    navigate('/');
+  };
 
   const openProject = (id) => {
-    if (!id || id === projectId) return;
+    if (!id || id === projectId) {
+      return;
+    }
+
     navigate(`/chat/${id}`);
   };
 
-  // ─── Create project ─────────────────────────────────────────────────────────
   const handleCreateProject = async (data) => {
     setSavingProject(true);
     setError('');
+
     try {
-      const res = await api.post('/projects', data);
-      const proj = res.data.data;
-      setProjects((cur) => [proj, ...cur]);
+      const response = await api.post('/projects', data);
+      const newProject = response.data.data;
+
+      setProjects((current) => [newProject, ...current]);
       setShowProjectModal(false);
-      navigate(`/chat/${proj.id}`);
+      navigate(`/chat/${newProject.id}`);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -174,16 +222,36 @@ export default function Chat() {
     }
   };
 
-  // ─── Send message ───────────────────────────────────────────────────────────
+  const updateAssistantText = (assistantId, content, finalId) => {
+    setMessages((current) => upsertAssistantMessage(current, assistantId, content, finalId));
+  };
+
+  const addAssistantPlaceholder = (assistantId) => {
+    setMessages((current) => {
+      const exists = current.some((item) => item.id === assistantId);
+
+      if (exists) {
+        return current;
+      }
+
+      return [...current, { id: assistantId, role: 'ASSISTANT', content: '', streaming: true }];
+    });
+  };
+
   const handleSend = async (event) => {
     event.preventDefault();
-    const text = draft.trim();
-    if (!text || sending || !activeChatId) return;
+
+    const messageText = draft.trim();
+
+    if (!messageText || sending || !projectId) {
+      return;
+    }
 
     const controller = new AbortController();
     streamAbortRef.current = controller;
 
-    const tempAssistantId = `assistant-${Date.now()}`;
+    const userMessageId = `user-${Date.now()}`;
+    const assistantMessageId = `assistant-${Date.now()}`;
     let assistantText = '';
     let assistantDone = false;
 
@@ -192,93 +260,131 @@ export default function Chat() {
     setSending(true);
     shouldAutoScrollRef.current = true;
 
-    // show user message immediately
-    setMessages((cur) => [...cur, { id: `user-${Date.now()}`, role: 'USER', content: text }]);
+    setMessages((current) => [
+      ...current,
+      { id: userMessageId, role: 'USER', content: messageText },
+    ]);
 
     try {
-      const base = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${base}/api/chat/stream`, {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({ chatId: activeChatId, message: text }),
+        body: JSON.stringify({
+          projectId,
+          message: messageText,
+        }),
         signal: controller.signal,
       });
 
-      if (!res.ok || !res.body) {
-        const txt = await res.text();
-        let msg = 'Stream failed';
-        try { msg = JSON.parse(txt)?.message || msg; } catch { msg = txt || msg; }
-        if (res.status === 401) { handleLogout(); return; }
-        throw new Error(msg);
+      if (!response.ok || !response.body) {
+        const text = await response.text();
+        let message = 'stream failed';
+
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            message = parsed.message || message;
+          } catch {
+            message = text;
+          }
+        }
+
+        if (response.status === 401 && message.toLowerCase().includes('token')) {
+          handleLogout();
+          return;
+        }
+
+        throw new Error(message);
       }
 
-      const reader = res.body.getReader();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+
+        if (done) {
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '');
         const blocks = buffer.split('\n\n');
         buffer = blocks.pop() || '';
 
         for (const block of blocks) {
-          if (!block.trim()) continue;
-          const { eventName, dataText } = parseStreamBlock(block);
-          if (!eventName) continue;
+          const trimmed = block.trim();
+
+          if (!trimmed) {
+            continue;
+          }
+
+          const { eventName, dataText } = parseStreamBlock(trimmed);
+
+          if (!eventName) {
+            continue;
+          }
 
           if (eventName === 'start') {
-            // show typing placeholder
-            setMessages((cur) => {
-              if (cur.some((m) => m.id === tempAssistantId)) return cur;
-              return [...cur, { id: tempAssistantId, role: 'ASSISTANT', content: '', streaming: true }];
-            });
+            addAssistantPlaceholder(assistantMessageId);
+            continue;
           }
 
           if (eventName === 'chunk') {
             const parsed = readJson(dataText);
-            const chunk = parsed?.text || '';
-            if (!chunk) continue;
-            assistantText += chunk;
-            setMessages((cur) => cur.map((m) =>
-              m.id === tempAssistantId ? { ...m, content: assistantText, streaming: true } : m
-            ));
+            const chunkText = parsed?.text || '';
+
+            if (!chunkText) {
+              continue;
+            }
+
+            assistantText += chunkText;
+            addAssistantPlaceholder(assistantMessageId);
+            updateAssistantText(assistantMessageId, assistantText, assistantMessageId);
+            continue;
           }
 
           if (eventName === 'done') {
             const parsed = readJson(dataText);
-            const serverMsg = parsed?.message;
-            const finalId = serverMsg?.id || tempAssistantId;
-            const finalText = serverMsg?.content || assistantText;
-            setMessages((cur) => cur.map((m) =>
-              m.id === tempAssistantId ? { id: finalId, role: 'ASSISTANT', content: finalText, streaming: false } : m
-            ));
+            const serverMessage = parsed?.message;
+            const finalText = serverMessage?.content || assistantText;
+            const finalId = serverMessage?.id || assistantMessageId;
+
+            if (!assistantText && !serverMessage) {
+              updateAssistantText(assistantMessageId, '', finalId);
+            } else {
+              updateAssistantText(assistantMessageId, finalText, finalId);
+            }
+
             assistantDone = true;
+            continue;
           }
 
           if (eventName === 'error') {
             const parsed = readJson(dataText);
-            throw new Error(parsed?.message || 'AI error');
+            throw new Error(parsed?.message || 'AI is unavailable right now');
           }
         }
       }
 
       if (!assistantDone && assistantText) {
-        setMessages((cur) => cur.map((m) =>
-          m.id === tempAssistantId ? { ...m, streaming: false } : m
-        ));
+        updateAssistantText(assistantMessageId, assistantText, assistantMessageId);
       }
     } catch (err) {
-      if (err?.name === 'AbortError') return;
-      setMessages((cur) => cur.filter((m) => m.id !== tempAssistantId));
+      if (err?.name === 'AbortError') {
+        return;
+      }
+
+      setMessages((current) => removeAssistantMessage(current, assistantMessageId));
       setError(getErrorMessage(err));
     } finally {
-      if (streamAbortRef.current === controller) streamAbortRef.current = null;
+      if (streamAbortRef.current === controller) {
+        streamAbortRef.current = null;
+      }
+
       setSending(false);
     }
   };
@@ -290,22 +396,28 @@ export default function Chat() {
     }
   };
 
-  // ─── Render helpers ─────────────────────────────────────────────────────────
-  const renderMessage = (msg) => {
-    const isUser = msg.role === 'USER';
+  const renderMessage = (message) => {
+    const isUser = message.role === 'USER';
+    const isStreaming = Boolean(message.streaming);
+
     return (
-      <div key={msg.id} className={`chat-row ${isUser ? 'chat-row-user' : 'chat-row-assistant'}`}>
-        {renderAvatar(msg.role)}
+      <div key={message.id} className={`chat-row ${isUser ? 'chat-row-user' : 'chat-row-assistant'}`}>
+        {renderAvatar(message.role)}
+
         <div className={`chat-bubble ${isUser ? 'chat-bubble-user' : 'chat-bubble-assistant'}`}>
           {isUser ? (
-            <div className="msg-text-user">{msg.content}</div>
-          ) : msg.streaming && !msg.content ? (
+            <div className="msg-text-user">{message.content}</div>
+          ) : isStreaming && !message.content ? (
             <div className="typing-pill" aria-live="polite">
               <span>AI is responding</span>
-              <span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+              <span className="typing-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
             </div>
           ) : (
-            <MarkdownMessage text={msg.content} />
+            <MarkdownMessage text={message.content} />
           )}
         </div>
       </div>
@@ -316,24 +428,31 @@ export default function Chat() {
     if (loading) {
       return (
         <div className="welcome-state">
-          <div className="loading-dots" aria-hidden="true"><span /><span /><span /></div>
-          <p className="welcome-sub">Loading...</p>
+          <div className="loading-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <p className="welcome-sub">Loading conversation...</p>
         </div>
       );
     }
+
     if (!projectId) {
       return (
         <div className="welcome-state">
           <div className="welcome-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 4l16 16" />
+              <path d="M20 4L4 20" />
             </svg>
           </div>
-          <h2 className="welcome-title">Create or select a project to start.</h2>
-          <p className="welcome-sub">Your projects live in the sidebar.</p>
+          <h2 className="welcome-title">Create or open a project to start chatting.</h2>
+          <p className="welcome-sub">Your projects stay in the sidebar.</p>
         </div>
       );
     }
+
     if (messages.length === 0) {
       return (
         <div className="welcome-state">
@@ -347,10 +466,10 @@ export default function Chat() {
         </div>
       );
     }
+
     return <div className="chat-list">{messages.map(renderMessage)}</div>;
   };
 
-  // ─── JSX ────────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="workspace">
@@ -365,9 +484,7 @@ export default function Chat() {
         <main className="main">
           <div className="main-topbar">
             <div className="topbar-left">
-              <span className="topbar-project-name">
-                {projectId ? projectTitle : 'Projects'}
-              </span>
+              <span className="topbar-project-name">{projectId ? projectTitle : 'Projects'}</span>
             </div>
           </div>
 
@@ -387,21 +504,17 @@ export default function Chat() {
                     ref={textareaRef}
                     className="composer-textarea"
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Message"
                     rows="1"
                     aria-label="Message input"
                   />
+
                   <div className="composer-actions">
-                    <p className="composer-help">Enter to send · Shift+Enter for new line</p>
-                    <button
-                      className="send-btn"
-                      type="submit"
-                      disabled={sending || !draft.trim()}
-                      aria-label="Send message"
-                    >
-                      {sending ? 'Sending...' : 'Send'}
+                    <p className="composer-help">Enter to send, Shift + Enter for a new line.</p>
+                    <button className="send-btn" type="submit" disabled={sending || !draft.trim()} aria-label="Send message">
+                      Send
                     </button>
                   </div>
                 </form>
@@ -414,7 +527,7 @@ export default function Chat() {
       <ProjectModal
         open={showProjectModal}
         title="New Project"
-        subtitle="Give your agent a name and a system prompt."
+        subtitle="Create a clean space for one conversation."
         submitLabel={savingProject ? 'Creating...' : 'Create'}
         saving={savingProject}
         onClose={() => setShowProjectModal(false)}
