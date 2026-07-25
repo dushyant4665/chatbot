@@ -65,8 +65,8 @@ graph TB
 ### Clone and Install
 
 ```bash
-git clone <repository-url>
-cd bot
+git clone https://github.com/dushyant4665/chatbot.git
+cd chatbot
 
 # Install backend dependencies
 cd backend
@@ -273,7 +273,7 @@ Authorization: Bearer <token>
 ## Project Structure
 
 ```
-bot/
+chatbot/
 ├── backend/
 │   ├── prisma/
 │   │   └── schema.prisma
@@ -324,57 +324,21 @@ bot/
 
 ## Database Schema
 
-```prisma
-model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  name         String
-  passwordHash String
-  projects     Project[]
-  chats        Chat[]
-  createdAt    DateTime  @default(now())
-}
-
-model Project {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chats       Chat[]
-  prompts     Prompt[]
-  createdAt   DateTime @default(now())
-}
-
-model Chat {
-  id        String        @id @default(uuid())
-  title     String
-  userId    String
-  projectId String?
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project   Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  messages  ChatMessage[]
-  createdAt DateTime      @default(now())
-}
-
-model ChatMessage {
-  id        String   @id @default(uuid())
-  role      String
-  content   String   @db.Text
-  chatId    String
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
-
-model Prompt {
-  id        String   @id @default(uuid())
-  title     String
-  content   String   @db.Text
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
 ```
+User (1) ──< (N) Projects
+User (1) ──< (N) Chats
+Project (1) ──< (N) Prompts
+Project (1) ──< (N) Chats
+Chat (1) ──< (N) ChatMessages
+```
+
+**Relationships:**
+- Each user owns multiple projects and chats
+- Each project can have multiple prompts (versioning)
+- Each chat contains multiple messages
+- Chats can optionally belong to a project
+
+Full schema available in `backend/prisma/schema.prisma`
 
 ## Deployment
 
@@ -414,22 +378,3 @@ model Prompt {
 - Verify API key is correct
 - Check API key has credits
 - Look at backend logs for errors
-
-**Build errors**
-- Delete node_modules and package-lock.json
-- Run npm install again
-- Check Node.js version (needs v18+)
-
-## Development Notes
-
-This codebase prioritizes:
-- Readable code over clever abstractions
-- Simple patterns over complex architecture
-- Clear naming over brevity
-- Inline logic over scattered utilities
-
-All code is written to be easily understood in interviews and by junior developers.
-
-## License
-
-MIT
