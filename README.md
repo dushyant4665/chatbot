@@ -1,26 +1,31 @@
 # AI Chat Platform
 
-A full-stack chatbot application with real-time streaming responses. Built with React, Node.js, and PostgreSQL.
+A full-stack chatbot application with real-time streaming AI responses. Built with React, Node.js, and PostgreSQL.
 
 ## Tech Stack
 
 **Frontend**
 - React 18 with Vite
 - React Router for navigation
+- Tailwind CSS for styling
 - Axios for HTTP requests
-- Custom CSS (no frameworks)
+- Headless UI components
+- Heroicons for icons
+- PDF.js and Mammoth for document parsing
 
 **Backend**
 - Node.js with Express
-- Prisma ORM
+- Prisma ORM with PostgreSQL adapter
 - PostgreSQL database
 - JWT authentication
+- bcrypt for password hashing
 - Zod for validation
+- CORS enabled
 
 **AI Integration**
-- Groq API (or OpenAI compatible)
-- Server-Sent Events for streaming
-- Real-time response rendering
+- Groq SDK
+- Server-Sent Events (SSE) for streaming
+- Real-time response rendering with 20ms typing delay
 
 ## Architecture
 
@@ -37,22 +42,23 @@ graph TB
     Stream --> Frontend
 ```
 
-**How it works:**
-1. User logs in and receives a JWT token
-2. Token is sent with every API request
-3. Backend validates token and processes request
+**Flow:**
+1. User authenticates and receives JWT token
+2. Token is stored in localStorage and sent with every request via axios interceptor
+3. Backend verifies token using protect middleware
 4. Chat messages trigger AI API calls
-5. AI responses stream back in real-time via SSE
-6. Frontend renders markdown responses
+5. AI responses stream back via SSE
+6. Frontend renders chunks with 20ms delay for typing effect
 
 ## Features
 
-- User authentication with JWT
-- Create multiple projects/agents with custom system prompts
-- Real-time chat with streaming responses
+- User authentication with JWT (7-day expiry)
+- Create multiple projects with custom system prompts
+- Real-time chat with streaming AI responses
 - Markdown rendering for formatted responses
 - Separate chat history per project
-- Mobile responsive interface
+- Auto-generated project prompts
+- Mobile responsive dark theme
 - Clean, maintainable codebase
 
 ## Installation
@@ -60,7 +66,7 @@ graph TB
 ### Prerequisites
 - Node.js v18 or higher
 - PostgreSQL database
-- Groq or OpenAI API key
+- Groq API key or OpenAI compatible API key
 
 ### Clone and Install
 
@@ -87,9 +93,16 @@ Create `backend/.env`:
 DATABASE_URL="postgresql://username:password@localhost:5432/database_name"
 PORT=5000
 JWT_SECRET="your-secret-key-here"
+JWT_EXPIRES_IN="7d"
 GROQ_API_KEY="your-groq-api-key"
+COMET_API_KEY="your-openai-compatible-key"
+FRONTEND_URL="http://localhost:5173"
 NODE_ENV=development
 ```
+
+**Note:** System automatically detects API provider based on key format:
+- If key starts with `gsk_` → Uses Groq API
+- Otherwise → Uses CometAPI (or any OpenAI compatible endpoint)
 
 ### Frontend Environment Variables
 
@@ -107,7 +120,7 @@ cd backend
 # Generate Prisma client
 npx prisma generate
 
-# Create database tables
+# Push schema to database
 npx prisma db push
 ```
 
@@ -134,26 +147,34 @@ Frontend runs on `http://localhost:5173`
 ## Usage
 
 ### 1. Register an Account
-- Go to the register page
+- Navigate to register page
 - Enter name, email, and password
 - Click create account
 
 ### 2. Create a Project
 - Click "New Project" in sidebar
-- Give it a title
-- Add a description (this becomes the AI system prompt)
+- Enter project title
+- Add description (becomes the AI system prompt)
+- System automatically creates a prompt for the project
 - Example: "You are a Python expert. Help with code and debugging."
 
 ### 3. Start Chatting
-- Click on a project to open it
+- Click on a project to open chat
 - Type your message in the input box
 - AI responds in real-time with streaming
-- Messages are saved automatically
+- Last 15 messages are used as conversation context
+- Messages are saved automatically to database
 
-### 4. Manage Chats
-- View all chats in the sidebar
+### 4. System Prompts
+- **Every chat gets a default system message** with markdown formatting instructions
+- **If chat belongs to a project**, the most recent project prompt replaces the default
+- This allows custom AI behavior per project
+
+### 5. Manage Chats
+- View all chats in sidebar
 - Click any chat to continue conversation
-- Delete chats you don't need anymore
+- Delete chats you don't need
+- Chat titles auto-update from first message
 
 ## API Endpoints
 
@@ -180,6 +201,8 @@ Content-Type: application/json
   "email": "john@example.com",
   "password": "password123"
 }
+
+Response: { "token": "jwt-token", "user": {...} }
 ```
 
 **Get Current User**
@@ -252,16 +275,19 @@ Content-Type: application/json
 }
 ```
 
-Response format (Server-Sent Events):
+**SSE Response Format:**
 ```
 event: start
 data: {"message": {...}}
 
 event: chunk
-data: {"text": "response"}
+data: {"text": "response chunk"}
 
 event: done
 data: {"message": {...}}
+
+event: error
+data: {"message": "error description"}
 ```
 
 **Delete Chat**
@@ -276,47 +302,50 @@ Authorization: Bearer <token>
 chatbot/
 ├── backend/
 │   ├── prisma/
-│   │   └── schema.prisma
+│   │   ├── schema.prisma           # Database schema
+│   │   └── migrations/             # Migration history
 │   ├── src/
 │   │   ├── config/
-│   │   │   └── database.js
+│   │   │   └── database.js         # Prisma client with PrismaPg adapter
 │   │   ├── controllers/
-│   │   │   ├── authController.js
-│   │   │   ├── projectController.js
-│   │   │   └── chatController.js
+│   │   │   ├── authController.js   # Register, login, me
+│   │   │   ├── projectController.js # CRUD projects
+│   │   │   └── chatController.js   # Chat + streaming logic
 │   │   ├── middleware/
-│   │   │   ├── auth.js
-│   │   │   ├── validate.js
-│   │   │   └── errorHandler.js
+│   │   │   ├── auth.js             # JWT verification (protect)
+│   │   │   ├── validate.js         # Zod validation middleware
+│   │   │   └── errorHandler.js     # Global error handler
 │   │   ├── routes/
 │   │   │   ├── authRoutes.js
 │   │   │   ├── projectRoutes.js
 │   │   │   └── chatRoutes.js
 │   │   ├── validator/
-│   │   │   ├── authValidators.js
-│   │   │   └── projectValidators.js
-│   │   ├── app.js
-│   │   └── server.js
+│   │   │   ├── authValidators.js   # Zod schemas for auth
+│   │   │   └── projectValidators.js # Zod schemas for projects
+│   │   ├── app.js                  # Express app setup
+│   │   └── server.js               # HTTP server
+│   ├── .env.example
 │   └── package.json
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Sidebar.jsx
-│   │   │   ├── MarkdownMessage.jsx
-│   │   │   ├── ProjectModal.jsx
-│   │   │   └── Modal.jsx
+│   │   │   ├── Sidebar.jsx         # Chat list + projects
+│   │   │   ├── MarkdownMessage.jsx # Custom markdown renderer
+│   │   │   ├── ProjectModal.jsx    # Create project form
+│   │   │   └── Modal.jsx           # Reusable modal wrapper
 │   │   ├── pages/
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx
-│   │   │   └── Chat.jsx
+│   │   │   ├── Login.jsx           # Login page
+│   │   │   ├── Register.jsx        # Register page
+│   │   │   └── Chat.jsx            # Main chat interface
 │   │   ├── lib/
-│   │   │   ├── api.js
-│   │   │   ├── session.js
-│   │   │   └── error.js
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css
+│   │   │   ├── api.js              # Axios instance with interceptor
+│   │   │   ├── session.js          # localStorage token management
+│   │   │   └── error.js            # Error handling utilities
+│   │   ├── App.jsx                 # Router with PrivateRoute/PublicRoute
+│   │   ├── main.jsx                # React entry point
+│   │   └── index.css               # Custom CSS + Tailwind base
+│   ├── tailwind.config.js          # Tailwind config with custom colors
 │   └── package.json
 │
 └── README.md
@@ -334,47 +363,79 @@ Chat (1) ──< (N) ChatMessages
 
 **Relationships:**
 - Each user owns multiple projects and chats
-- Each project can have multiple prompts (versioning)
+- Each project can have multiple prompts (versioned system prompts)
 - Each chat contains multiple messages
-- Chats can optionally belong to a project
+- Chats can optionally belong to a project (for custom AI behavior)
+- All relationships have cascading deletes
 
-Full schema available in `backend/prisma/schema.prisma`
+**Full schema:** `backend/prisma/schema.prisma`
+
+## Security Features
+
+- **Password Hashing:** bcrypt with salt rounds
+- **JWT Authentication:** 7-day token expiry
+- **Protected Routes:** Middleware verifies token on every request
+- **Ownership Checks:** Users can only access their own data
+- **Input Validation:** Zod schemas validate all user inputs
+- **CORS:** Restricted to frontend URL only
+- **Error Handling:** Global handler prevents info leakage
 
 ## Deployment
 
 ### Backend on Render
 
 1. Create new Web Service
-2. Connect your GitHub repository
-3. Configure build settings:
-   - Build Command: `npm install && npx prisma generate`
-   - Start Command: `npm start`
-4. Add environment variables
+2. Connect GitHub repository
+3. Build settings:
+   - **Build Command:** `npm install && npx prisma generate`
+   - **Start Command:** `npm start`
+4. Add environment variables (see .env.example)
 5. Deploy
+
+**Important:** Make sure to use `@prisma/adapter-pg` for PostgreSQL connections on Render.
 
 ### Frontend on Vercel
 
 1. Import project from GitHub
-2. Framework preset: Vite
+2. Framework preset: **Vite**
 3. Build settings:
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-4. Add environment variables
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+   - **Root Directory:** `frontend`
+4. Add environment variable: `VITE_API_URL`
 5. Deploy
 
 ## Common Issues
 
 **Database connection fails**
 - Check if PostgreSQL is running
-- Verify DATABASE_URL format
+- Verify DATABASE_URL format is correct
 - Ensure database exists
 
 **JWT token errors**
-- Make sure JWT_SECRET is set
-- Token expires after 7 days by default
-- Login again to get new token
+- Verify JWT_SECRET is set in backend .env
+- Token expires after 7 days (check JWT_EXPIRES_IN)
+- Clear localStorage and login again
 
 **AI not responding**
-- Verify API key is correct
-- Check API key has credits
-- Look at backend logs for errors
+- Verify API key is correct (GROQ_API_KEY or COMET_API_KEY)
+- Check API key has sufficient credits
+- Look at backend console for error logs
+
+**CORS errors**
+- Make sure FRONTEND_URL in backend .env matches your frontend URL
+- Check if backend is running
+
+## Health Check
+
+Backend provides a health endpoint:
+
+```http
+GET /health
+
+Response: {
+  "status": "ok",
+  "message": "server is running",
+  "timestamp": "2026-07-25T..."
+}
+```
