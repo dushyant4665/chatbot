@@ -9,9 +9,6 @@ A full-stack chatbot application with real-time streaming AI responses. Built wi
 - React Router for navigation
 - Custom CSS (no frameworks)
 - Axios for HTTP requests
-- Headless UI components
-- Heroicons for icons
-- PDF.js and Mammoth for document parsing
 
 **Backend**
 - Node.js with Express
@@ -100,7 +97,7 @@ FRONTEND_URL="http://localhost:5173"
 NODE_ENV=development
 ```
 
-**Note:** System automatically detects API provider based on key format:
+**Note:** System automatically detects provider based on key format:
 - If key starts with `gsk_` → Uses Groq API
 - Otherwise → Uses CometAPI (or any OpenAI compatible endpoint)
 
