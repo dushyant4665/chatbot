@@ -1,10 +1,10 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 
 import authRoutes from './routes/authRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
-import chatRoutes from './routes/chatRoutes.js';  
+import chatRoutes from './routes/chatRoutes.js';
 
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -16,14 +16,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    message: 'server is running',
-    timestamp: new Date().toISOString()
-  });
-});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);

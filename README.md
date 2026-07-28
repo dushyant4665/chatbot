@@ -7,7 +7,7 @@ A full-stack chatbot application with real-time streaming AI responses. Built wi
 **Frontend**
 - React 18 with Vite
 - React Router for navigation
-- Tailwind CSS for styling
+- Custom CSS (no frameworks)
 - Axios for HTTP requests
 - Headless UI components
 - Heroicons for icons
